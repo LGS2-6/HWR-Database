@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hertfordshire Support Directory</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, Helvetica, sans-serif; background: #f5f5f3; color: #1a1a1a; padding: 2rem 1rem; }
+.container { max-width: 960px; margin: 0 auto; }
+.db-header { margin-bottom: 1.5rem; }
+.db-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+.db-sub { font-size: 14px; color: #666; }
+.search-bar { width: 100%; padding: 10px 14px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px; background: #fff; margin-bottom: 1rem; }
+.search-bar:focus { outline: none; border-color: #888; }
+.filter-section { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.filter-row:last-child { margin-bottom: 0; }
+.filter-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.06em; min-width: 100px; }
+.pill { font-size: 12px; padding: 5px 13px; border-radius: 999px; border: 1px solid #ccc; background: #fff; color: #555; cursor: pointer; transition: all 0.15s; }
+.pill:hover { background: #f0f0f0; }
+.pill.aud-ref.active { background: #FBEAF0; color: #72243E; border-color: #ED93B1; }
+.pill.aud-asy.active { background: #FEF3E2; color: #7A4300; border-color: #F5B942; }
+.pill.loc.active { background: #EEEDFE; color: #3C3489; border-color: #AFA9EC; }
+.pill.type.active { background: #E1F5EE; color: #085041; border-color: #5DCAA5; }
+.pill.prov.active { background: #FAECE7; color: #712B13; border-color: #F0997B; }
+.count { font-size: 13px; color: #888; margin-bottom: 0.75rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1rem 1.25rem; display: flex; flex-direction: column; }
+.card-name { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 5px; }
+.card-desc { font-size: 13px; color: #555; line-height: 1.55; margin-bottom: 10px; flex: 1; }
+.card-contact { font-size: 12px; color: #444; line-height: 1.6; margin-bottom: 10px; border-top: 1px solid #f0f0f0; padding-top: 8px; }
+.card-contact a { color: #3C3489; text-decoration: none; }
+.card-contact a:hover { text-decoration: underline; }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag { font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 500; }
+.tag-aud-ref { background: #FBEAF0; color: #72243E; }
+.tag-aud-asy { background: #FEF3E2; color: #7A4300; }
+.tag-loc { background: #EEEDFE; color: #3C3489; }
+.tag-type { background: #E1F5EE; color: #085041; }
+.tag-prov { background: #FAECE7; color: #712B13; }
+.no-results { text-align: center; padding: 3rem; color: #999; font-size: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 1rem; font-size: 12px; }
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="db-header">
+    <div class="db-title">Hertfordshire Support Directory</div>
+    <div class="db-sub">Refugees &amp; asylum seekers — support services across Hertfordshire</div>
+  </div>
+
+  <input class="search-bar" type="search" placeholder="Search organisations..." id="search" />
+
+  <div class="filter-section">
+    <div class="filter-row"><span class="filter-label">For</span><div id="aud-filters" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
+    <div class="filter-row"><span class="filter-label">Location</span><div id="loc-filters" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
+    <div class="filter-row"><span class="filter-label">Support type</span><div id="type-filters" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
+    <div class="filter-row"><span class="filter-label">Provider</span><div id="prov-filters" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#ED93B1;"></div> Refugees</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#F5B942;"></div> Asylum seekers</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#AFA9EC;"></div> Location</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#5DCAA5;"></div> Support type</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#F0997B;"></div> Provider</div>
+  </div>
+
+  <div class="count" id="count"></div>
+  <div class="cards" id="cards"></div>
+</div>
+
+<script>
+const orgs = [
+  { name: "Flourish (Herts Mind Network)", desc: "Mental health and wellbeing community support for refugees and asylum seekers aged 16+ across Hertfordshire, including counselling, peer support, and community activities.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Mental health", "General wellbeing"], providers: ["NGO"], contact: { phone: "020 3727 3600", email: "flourish@hertsmindnetwork.org", web: "https://www.hertsmindnetwork.org/services-for-adults/community-support/flourish/" } },
+  { name: "Barnardo's (Ubuntu)", desc: "Specialist support for refugee and asylum-seeking children and families, including therapeutic services, advocacy, and integration support across Hertfordshire.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "Family support"], providers: ["NGO"], contact: { email: "info@barnardos.org.uk", web: "https://www.barnardos.org.uk" } },
+  { name: "Communities First", desc: "Community development and integration support for refugees and asylum seekers, helping people access services, build connections, and settle in their communities.", audiences: ["Refugees", "Asylum seekers"], locations: ["St Albans", "Welwyn"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { phone: "01727 649970", email: "community.help@communities1st.org.uk", web: "https://www.communities1st.org.uk/refugee-response-project" } },
+  { name: "Hawa", desc: "Culturally sensitive support for refugee and asylum-seeking women and families in St Albans, including advice, social activities, and practical assistance.", audiences: ["Refugees", "Asylum seekers"], locations: ["St Albans"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { phone: "07480 934282", email: "hawa@hawaherts.co.uk", web: "https://hawaherts.co.uk" } },
+  { name: "Refugee Council", desc: "National organisation providing expert advice, legal guidance, and practical support to refugees and people seeking asylum throughout the UK.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support"], providers: ["NGO"], contact: { phone: "020 7346 1134", email: "info@refugeecouncil.org.uk", web: "https://www.refugeecouncil.org.uk" } },
+  { name: "Herts for Refugees", desc: "Hertfordshire-based charity helping refugees get the support and respect they deserve, providing practical assistance and advocacy across the county.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { phone: "07754 209535", email: "info@hertsforrefugees.org", web: "https://www.hertsforrefugees.org" } },
+  { name: "Citizens Advice Dacorum — Asylum & Refugee Service", desc: "Free countywide confidential advice service for asylum seekers and refugees in Hertfordshire, covering housing, employment rights, benefits, debt, immigration, family, and health. Funded by Hertfordshire County Council.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "General wellbeing"], providers: ["Other"], contact: { phone: "0800 144 8848", web: "https://dacorumcab.org.uk/asr_form/" } },
+  { name: "North Herts Ethnic Minority Forum", desc: "Advocacy and support for ethnic minority communities including refugees in North Hertfordshire, offering advice, representation, and community programmes.", audiences: ["Refugees", "Asylum seekers"], locations: ["North Herts"], types: ["Refugee support", "General wellbeing"], providers: ["Other"], contact: { phone: "01462 440224", email: "admn.nhmef@outlook.com", web: "https://www.nhmef.org.uk" } },
+  { name: "Goods for Good", desc: "Collects and distributes clothing and essential goods to refugees and displaced people across Hertfordshire.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support"], providers: ["NGO"], contact: { phone: "01923 918880", email: "info@goodsforgood.org.uk", web: "https://www.goodsforgood.org.uk" } },
+  { name: "Citizens Advice Stevenage", desc: "Free immigration advice service for refugees, asylum seekers and undocumented migrants in Stevenage and surrounding areas, covering rights and legal guidance.", audiences: ["Refugees", "Asylum seekers"], locations: ["Stevenage"], types: ["Refugee support", "General wellbeing"], providers: ["Other"], contact: { phone: "0800 144 8848", email: "immigration@castevenage.org.uk", web: "https://www.castevenage.org.uk" } },
+  { name: "Watford & Three Rivers Refugee Partnership", desc: "Local partnership providing practical and emotional support to refugees and asylum seekers settling in Watford and Three Rivers, including befriending and community integration.", audiences: ["Refugees", "Asylum seekers"], locations: ["Watford", "Three Rivers"], types: ["Refugee support", "General wellbeing"], providers: ["Other"], contact: { phone: "01923 252434", email: "info@wtrrp.org.uk", web: "https://wtrrp.org.uk" } },
+  { name: "Hertsmere Borough Council — newsletters", desc: "Regular newsletters from Hertsmere Borough Council sharing local wellbeing resources, community events, and support services for residents including refugees and asylum seekers.", audiences: ["Refugees", "Asylum seekers"], locations: ["Hertsmere"], types: ["General wellbeing", "Information & resources"], providers: ["Council"], contact: { phone: "020 8207 2277", email: "customer.services@hertsmere.gov.uk", web: "https://www.hertsmere.gov.uk" } },
+  { name: "Migrant Help", desc: "National charity providing free, independent advice and guidance to asylum seekers across the UK, helping them navigate the asylum process, access accommodation and support, and understand their rights. Free 24/7 helpline available.", audiences: ["Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "Information & resources"], providers: ["NGO"], contact: { phone: "0808 8010 503", email: "info@migranthelpuk.org", web: "https://www.migranthelpuk.org" } },
+  { name: "Herts Sports Partnership — Active Communities", desc: "Sport and physical activity programme specifically for refugees and asylum seekers in Hertfordshire. Includes the Ready, Steady, Coach! scheme offering sports coaching qualifications, and HAPpy holiday camps for children aged 4–16 free of charge.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Activities", "General wellbeing"], providers: ["Other"], contact: { phone: "01707 284229", email: "info@sportinherts.org.uk", web: "https://sportinherts.org.uk/Active-Communities" } },
+  { name: "Hertfordshire Money Advice Unit", desc: "County Council-funded service providing specialist benefits and budgeting advice for refugees and asylum seekers, including individual casework support with Universal Credit claims, Rent Deposit Schemes, and other financial matters.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["General wellbeing", "Information & resources"], providers: ["Council"], contact: { phone: "01438 843456", email: "mauadmin@hertfordshire.gov.uk", web: "https://directory.hertfordshire.gov.uk/Services/22195" } },
+  { name: "British Red Cross — Refugee Services (Beds & Herts)", desc: "Provides casework support to asylum seekers and refugees in Bedfordshire and Hertfordshire, including emergency help, one-to-one support, information and advice on entitlements, destitution support, and family reunion assistance.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { phone: "01582 589081", email: "rsenquiriesluton@redcross.org.uk", web: "https://www.redcross.org.uk/get-help/get-help-as-a-refugee" } },
+  { name: "No Floor No More", desc: "St Albans-based charity providing cheap flooring for vulnerable families including refugees and asylum seekers.", audiences: ["Refugees", "Asylum seekers"], locations: ["St Albans"], types: ["Refugee support"], providers: ["NGO"], contact: { web: "https://www.nofloornomore.org/" } },
+  { name: "Refugee Education UK", desc: "Provides advice and advocacy for asylum seekers and refugees aged under 25 wanting to access further and higher education in the UK.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Information & resources", "Refugee support"], providers: ["NGO"], contact: { web: "https://www.reuk.org/" } },
+  { name: "Right to Remain", desc: "Comprehensive and reliable information source covering all aspects of the UK asylum process, available in over 100 languages. A vital resource for asylum seekers navigating immigration procedures.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Information & resources"], providers: ["NGO"], contact: { web: "https://righttoremain.org.uk/" } },
+  { name: "Language Reach", desc: "Professional translation and interpreting services supporting refugees and asylum seekers to communicate effectively with services and organisations.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Information & resources"], providers: ["Other"], contact: { web: "https://www.languagereach.com/" } },
+  { name: "Hertfordshire Children's Fund", desc: "Professional referral-only fund providing grants of up to £500 for families with children in need to buy essential household items.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "Family support"], providers: ["Council"], contact: { web: "https://www.hertscf.org.uk/hertfordshire-childrens-fund" } },
+  { name: "Hertfordshire Welfare Assistance Fund", desc: "One-off payments for families who are struggling financially, paid in vouchers for utilities, household items, or food. Applications can be made every three months.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["General wellbeing", "Information & resources"], providers: ["Council"], contact: { web: "https://www.hertfordshire.gov.uk/about-the-council/news/cost-of-living/hertfordshire-welfare-assistance.aspx" } },
+  { name: "DENS Foodbank (Dacorum)", desc: "Dacorum-based foodbank providing food parcels to support refugees. Vouchers are available on request. Note: does not generally support asylum seekers.", audiences: ["Refugees"], locations: ["Dacorum"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { email: "admin@dacorumfoodbank.org.uk", web: "https://www.dacorumfoodbank.org.uk" } },
+  { name: "Dacorum Community Trust", desc: "Local charity providing furniture and other household support to vulnerable households in Dacorum including refugees and asylum seekers. Self-referral is possible.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { web: "https://www.dctrust.org.uk/" } },
+  { name: "Dacorum Borough Council — Humanitarian Team", desc: "Coordinates Dacorum Borough Council's local response to refugees and asylum seekers, including housing clinics to support refugees into private rented accommodation and homelessness prevention for priority need individuals.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["Refugee support", "General wellbeing"], providers: ["Council"], contact: { email: "Humanitarian.response.mailbox@dacorum.gov.uk" } },
+  { name: "I Am Cherished", desc: "Dacorum-based domestic violence charity providing casework support to refugee and asylum-seeking women, and running a weekly Thursday morning friendship session.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["General wellbeing", "Family support"], providers: ["NGO"], contact: { email: "enquiries@iamcherished.co.uk", web: "https://www.iamcherished.co.uk" } },
+  { name: "Services for Young People (Dacorum)", desc: "Youth support service based at XC Centre, Jarman Park, for young people aged 11–17 in Dacorum, including local projects and educational opportunities for young refugees and asylum seekers.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["Activities", "Family support"], providers: ["Other"], contact: { web: "https://www.servicesforyoungpeople.org/support-for-young-people/youth-projects-in-your-area/dacorum-projects/" } },
+  { name: "West Herts College", desc: "Further education college offering ESOL classes for adults aged 19+ and vocational courses for young people aged 16–19, at campuses in Hemel Hempstead and Watford. Travel support may be available.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum", "Watford"], types: ["Activities", "Information & resources"], providers: ["Other"], contact: { web: "https://www.westherts.ac.uk/" } },
+  { name: "Alternatives Baby Charity", desc: "Dacorum charity providing free baby baskets from 32 weeks of pregnancy for vulnerable families including refugees and asylum seekers.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["Refugee support", "Family support"], providers: ["NGO"], contact: { email: "info@alternativeswatford.co.uk", web: "https://alternativeswatford.co.uk/" } },
+  { name: "Alexandra Road Congregational Church", desc: "Hemel Hempstead church hosting a weekly Friday drop-in for refugees and asylum seekers in Dacorum, providing a welcoming community space and practical support.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["General wellbeing", "Activities"], providers: ["Other"], contact: { email: "rwnarcc@outlook.com", web: "https://www.arcchemel.org.uk/" } }
+];
+
+const allAuds  = [...new Set(orgs.flatMap(o => o.audiences))].sort();
+const allLocs  = [...new Set(orgs.flatMap(o => o.locations))].sort();
+const allTypes = [...new Set(orgs.flatMap(o => o.types))].sort();
+const allProvs = [...new Set(orgs.flatMap(o => o.providers))].sort();
+
+let activeAuds = new Set(), activeLocs = new Set(), activeTypes = new Set(), activeProvs = new Set();
+let query = "";
+
+function makePills(containerId, items, activeSet, clsFn) {
+  const el = document.getElementById(containerId);
+  items.forEach(item => {
+    const cls = typeof clsFn === "function" ? clsFn(item) : clsFn;
+    const btn = document.createElement("button");
+    btn.className = "pill " + cls;
+    btn.textContent = item;
+    btn.addEventListener("click", () => {
+      if (activeSet.has(item)) activeSet.delete(item); else activeSet.add(item);
+      btn.classList.toggle("active", activeSet.has(item));
+      render();
+    });
+    el.appendChild(btn);
+  });
+}
+
+makePills("aud-filters",  allAuds,  activeAuds,  item => item === "Refugees" ? "aud-ref" : "aud-asy");
+makePills("loc-filters",  allLocs,  activeLocs,  () => "loc");
+makePills("type-filters", allTypes, activeTypes, () => "type");
+makePills("prov-filters", allProvs, activeProvs, () => "prov");
+
+document.getElementById("search").addEventListener("input", e => { query = e.target.value.toLowerCase(); render(); });
+
+function render() {
+  const filtered = orgs.filter(o => {
+    if (activeAuds.size  && !o.audiences.some(a => activeAuds.has(a)))  return false;
+    if (activeLocs.size  && !o.locations.some(l => activeLocs.has(l)))  return false;
+    if (activeTypes.size && !o.types.some(t => activeTypes.has(t)))     return false;
+    if (activeProvs.size && !o.providers.some(p => activeProvs.has(p))) return false;
+    if (query) {
+      const hay = [o.name, o.desc, ...o.locations, ...o.types, ...o.audiences].join(" ").toLowerCase();
+      if (!hay.includes(query)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById("count").textContent = filtered.length + " organisation" + (filtered.length !== 1 ? "s" : "") + " found";
+  const cardsEl = document.getElementById("cards");
+  if (!filtered.length) { cardsEl.innerHTML = '<div class="no-results">No organisations match your filters.</div>'; return; }
+  cardsEl.innerHTML = "";
+
+  filtered.forEach(o => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const c = o.contact || {};
+    const contactLines = [];
+    if (c.phone) contactLines.push('📞 <a href="tel:' + c.phone.replace(/\s/g,'') + '">' + c.phone + '</a>');
+    if (c.email) contactLines.push('✉️ <a href="mailto:' + c.email + '">' + c.email + '</a>');
+    if (c.web)   contactLines.push('🌐 <a href="' + c.web + '" target="_blank" rel="noopener">Website</a>');
+    const contactHTML = contactLines.length
+      ? '<div class="card-contact">' + contactLines.join('<br>') + '</div>'
+      : '<div class="card-contact" style="color:#bbb;font-style:italic;">Contact details not available</div>';
+    card.innerHTML =
+      '<div class="card-name">' + o.name + '</div>' +
+      '<div class="card-desc">' + o.desc + '</div>' +
+      contactHTML +
+      '<div class="tags">' +
+      o.audiences.map(a => '<span class="tag ' + (a === "Refugees" ? "tag-aud-ref" : "tag-aud-asy") + '">' + a + '</span>').join("") +
+      o.locations.map(l => '<span class="tag tag-loc">' + l + '</span>').join("") +
+      o.types.map(t    => '<span class="tag tag-type">' + t + '</span>').join("") +
+      o.providers.map(p => '<span class="tag tag-prov">' + p + '</span>').join("") +
+      '</div>';
+    cardsEl.appendChild(card);
+  });
+}
+
+render();
+</script>
+</body>
+</html>
