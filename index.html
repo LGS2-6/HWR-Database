@@ -43,6 +43,21 @@ body { font-family: Arial, Helvetica, sans-serif; background: #f5f5f3; color: #1
 .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 1rem; font-size: 12px; }
 .legend-item { display: flex; align-items: center; gap: 5px; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+.status-box { text-align: center; padding: 3rem; font-size: 14px; color: #888; }
+.status-box.error { color: #c0392b; text-align: left; background: #fff; border: 1px solid #f0c0c0; border-radius: 10px; padding: 1.5rem; }
+.spinner { display: inline-block; width: 26px; height: 26px; border: 3px solid #e0e0e0; border-top-color: #888; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 1rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.setup-box { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; }
+.setup-box h3 { font-size: 15px; margin-bottom: 0.75rem; }
+.setup-box p { font-size: 13px; color: #555; line-height: 1.6; margin-bottom: 0.5rem; }
+.setup-box code { background: #f5f5f3; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; word-break: break-all; display: inline-block; }
+.setup-box input { width: 100%; padding: 8px 11px; font-size: 13px; border: 1px solid #ccc; border-radius: 8px; margin: 8px 0; font-family: monospace; }
+.setup-box button { background: #1a1a1a; color: #fff; border: none; padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.setup-box button:hover { background: #333; }
+.setup-box ol { margin: 0.5rem 0 0.5rem 1.25rem; font-size: 13px; color: #555; line-height: 1.8; }
+.refresh-row { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; gap: 6px; }
+.refresh-btn { font-size: 12px; padding: 5px 12px; border-radius: 8px; border: 1px solid #ccc; background: #fff; color: #666; cursor: pointer; }
+.refresh-btn:hover { background: #f5f5f3; }
 </style>
 </head>
 <body>
@@ -52,16 +67,34 @@ body { font-family: Arial, Helvetica, sans-serif; background: #f5f5f3; color: #1
     <div class="db-sub">Refugees &amp; asylum seekers — support services across Hertfordshire</div>
   </div>
 
-  <input class="search-bar" type="search" placeholder="Search organisations..." id="search" />
+  <div class="setup-box" id="setupBox">
+    <h3>One-time setup: connect your Apps Script URL</h3>
+    <p>This directory loads live from your Google Sheet via a small free Google Apps Script relay (avoids the browser CORS errors you hit before). Setup takes about 3 minutes — full instructions are in the accompanying guide.</p>
+    <ol>
+      <li>Open your Google Sheet → <strong>Extensions → Apps Script</strong></li>
+      <li>Paste in the provided script code, click <strong>Deploy → New deployment → Web app</strong></li>
+      <li>Set access to <strong>Anyone</strong>, click Deploy, and copy the Web App URL it gives you</li>
+      <li>Paste that URL below</li>
+    </ol>
+    <input type="text" id="sheetIdInput" placeholder="Paste your Apps Script Web App URL here..." />
+    <br><button id="saveSheetId">Connect &amp; load directory</button>
+  </div>
 
-  <div class="filter-section">
+  <div class="refresh-row" id="refreshRow" style="display:none;">
+    <button class="refresh-btn" id="refreshBtn">↻ Refresh data</button>
+    <button class="refresh-btn" id="changeSheetBtn">⚙ Change source</button>
+  </div>
+
+  <input class="search-bar" type="search" placeholder="Search organisations..." id="search" style="display:none;" />
+
+  <div class="filter-section" id="filterSection" style="display:none;">
     <div class="filter-row"><span class="filter-label">For</span><div id="aud-filters" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
     <div class="filter-row"><span class="filter-label">Location</span><div id="loc-filters" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
     <div class="filter-row"><span class="filter-label">Support type</span><div id="type-filters" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
     <div class="filter-row"><span class="filter-label">Provider</span><div id="prov-filters" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>
   </div>
 
-  <div class="legend">
+  <div class="legend" id="legend" style="display:none;">
     <div class="legend-item"><div class="legend-dot" style="background:#ED93B1;"></div> Refugees</div>
     <div class="legend-item"><div class="legend-dot" style="background:#F5B942;"></div> Asylum seekers</div>
     <div class="legend-item"><div class="legend-dot" style="background:#AFA9EC;"></div> Location</div>
@@ -70,55 +103,107 @@ body { font-family: Arial, Helvetica, sans-serif; background: #f5f5f3; color: #1
   </div>
 
   <div class="count" id="count"></div>
-  <div class="cards" id="cards"></div>
+  <div id="cards" class="cards"></div>
 </div>
 
 <script>
-const orgs = [
-  { name: "Flourish (Herts Mind Network)", desc: "Mental health and wellbeing community support for refugees and asylum seekers aged 16+ across Hertfordshire, including counselling, peer support, and community activities.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Mental health", "General wellbeing"], providers: ["NGO"], contact: { phone: "020 3727 3600", email: "flourish@hertsmindnetwork.org", web: "https://www.hertsmindnetwork.org/services-for-adults/community-support/flourish/" } },
-  { name: "Barnardo's (Ubuntu)", desc: "Specialist support for refugee and asylum-seeking children and families, including therapeutic services, advocacy, and integration support across Hertfordshire.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "Family support"], providers: ["NGO"], contact: { email: "info@barnardos.org.uk", web: "https://www.barnardos.org.uk" } },
-  { name: "Communities First", desc: "Community development and integration support for refugees and asylum seekers, helping people access services, build connections, and settle in their communities.", audiences: ["Refugees", "Asylum seekers"], locations: ["St Albans", "Welwyn"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { phone: "01727 649970", email: "community.help@communities1st.org.uk", web: "https://www.communities1st.org.uk/refugee-response-project" } },
-  { name: "Hawa", desc: "Culturally sensitive support for refugee and asylum-seeking women and families in St Albans, including advice, social activities, and practical assistance.", audiences: ["Refugees", "Asylum seekers"], locations: ["St Albans"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { phone: "07480 934282", email: "hawa@hawaherts.co.uk", web: "https://hawaherts.co.uk" } },
-  { name: "Refugee Council", desc: "National organisation providing expert advice, legal guidance, and practical support to refugees and people seeking asylum throughout the UK.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support"], providers: ["NGO"], contact: { phone: "020 7346 1134", email: "info@refugeecouncil.org.uk", web: "https://www.refugeecouncil.org.uk" } },
-  { name: "Herts for Refugees", desc: "Hertfordshire-based charity helping refugees get the support and respect they deserve, providing practical assistance and advocacy across the county.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { phone: "07754 209535", email: "info@hertsforrefugees.org", web: "https://www.hertsforrefugees.org" } },
-  { name: "Citizens Advice Dacorum — Asylum & Refugee Service", desc: "Free countywide confidential advice service for asylum seekers and refugees in Hertfordshire, covering housing, employment rights, benefits, debt, immigration, family, and health. Funded by Hertfordshire County Council.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "General wellbeing"], providers: ["Other"], contact: { phone: "0800 144 8848", web: "https://dacorumcab.org.uk/asr_form/" } },
-  { name: "North Herts Ethnic Minority Forum", desc: "Advocacy and support for ethnic minority communities including refugees in North Hertfordshire, offering advice, representation, and community programmes.", audiences: ["Refugees", "Asylum seekers"], locations: ["North Herts"], types: ["Refugee support", "General wellbeing"], providers: ["Other"], contact: { phone: "01462 440224", email: "admn.nhmef@outlook.com", web: "https://www.nhmef.org.uk" } },
-  { name: "Goods for Good", desc: "Collects and distributes clothing and essential goods to refugees and displaced people across Hertfordshire.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support"], providers: ["NGO"], contact: { phone: "01923 918880", email: "info@goodsforgood.org.uk", web: "https://www.goodsforgood.org.uk" } },
-  { name: "Citizens Advice Stevenage", desc: "Free immigration advice service for refugees, asylum seekers and undocumented migrants in Stevenage and surrounding areas, covering rights and legal guidance.", audiences: ["Refugees", "Asylum seekers"], locations: ["Stevenage"], types: ["Refugee support", "General wellbeing"], providers: ["Other"], contact: { phone: "0800 144 8848", email: "immigration@castevenage.org.uk", web: "https://www.castevenage.org.uk" } },
-  { name: "Watford & Three Rivers Refugee Partnership", desc: "Local partnership providing practical and emotional support to refugees and asylum seekers settling in Watford and Three Rivers, including befriending and community integration.", audiences: ["Refugees", "Asylum seekers"], locations: ["Watford", "Three Rivers"], types: ["Refugee support", "General wellbeing"], providers: ["Other"], contact: { phone: "01923 252434", email: "info@wtrrp.org.uk", web: "https://wtrrp.org.uk" } },
-  { name: "Hertsmere Borough Council — newsletters", desc: "Regular newsletters from Hertsmere Borough Council sharing local wellbeing resources, community events, and support services for residents including refugees and asylum seekers.", audiences: ["Refugees", "Asylum seekers"], locations: ["Hertsmere"], types: ["General wellbeing", "Information & resources"], providers: ["Council"], contact: { phone: "020 8207 2277", email: "customer.services@hertsmere.gov.uk", web: "https://www.hertsmere.gov.uk" } },
-  { name: "Migrant Help", desc: "National charity providing free, independent advice and guidance to asylum seekers across the UK, helping them navigate the asylum process, access accommodation and support, and understand their rights. Free 24/7 helpline available.", audiences: ["Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "Information & resources"], providers: ["NGO"], contact: { phone: "0808 8010 503", email: "info@migranthelpuk.org", web: "https://www.migranthelpuk.org" } },
-  { name: "Herts Sports Partnership — Active Communities", desc: "Sport and physical activity programme specifically for refugees and asylum seekers in Hertfordshire. Includes the Ready, Steady, Coach! scheme offering sports coaching qualifications, and HAPpy holiday camps for children aged 4–16 free of charge.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Activities", "General wellbeing"], providers: ["Other"], contact: { phone: "01707 284229", email: "info@sportinherts.org.uk", web: "https://sportinherts.org.uk/Active-Communities" } },
-  { name: "Hertfordshire Money Advice Unit", desc: "County Council-funded service providing specialist benefits and budgeting advice for refugees and asylum seekers, including individual casework support with Universal Credit claims, Rent Deposit Schemes, and other financial matters.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["General wellbeing", "Information & resources"], providers: ["Council"], contact: { phone: "01438 843456", email: "mauadmin@hertfordshire.gov.uk", web: "https://directory.hertfordshire.gov.uk/Services/22195" } },
-  { name: "British Red Cross — Refugee Services (Beds & Herts)", desc: "Provides casework support to asylum seekers and refugees in Bedfordshire and Hertfordshire, including emergency help, one-to-one support, information and advice on entitlements, destitution support, and family reunion assistance.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { phone: "01582 589081", email: "rsenquiriesluton@redcross.org.uk", web: "https://www.redcross.org.uk/get-help/get-help-as-a-refugee" } },
-  { name: "No Floor No More", desc: "St Albans-based charity providing cheap flooring for vulnerable families including refugees and asylum seekers.", audiences: ["Refugees", "Asylum seekers"], locations: ["St Albans"], types: ["Refugee support"], providers: ["NGO"], contact: { web: "https://www.nofloornomore.org/" } },
-  { name: "Refugee Education UK", desc: "Provides advice and advocacy for asylum seekers and refugees aged under 25 wanting to access further and higher education in the UK.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Information & resources", "Refugee support"], providers: ["NGO"], contact: { web: "https://www.reuk.org/" } },
-  { name: "Right to Remain", desc: "Comprehensive and reliable information source covering all aspects of the UK asylum process, available in over 100 languages. A vital resource for asylum seekers navigating immigration procedures.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Information & resources"], providers: ["NGO"], contact: { web: "https://righttoremain.org.uk/" } },
-  { name: "Language Reach", desc: "Professional translation and interpreting services supporting refugees and asylum seekers to communicate effectively with services and organisations.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Information & resources"], providers: ["Other"], contact: { web: "https://www.languagereach.com/" } },
-  { name: "Hertfordshire Children's Fund", desc: "Professional referral-only fund providing grants of up to £500 for families with children in need to buy essential household items.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["Refugee support", "Family support"], providers: ["Council"], contact: { web: "https://www.hertscf.org.uk/hertfordshire-childrens-fund" } },
-  { name: "Hertfordshire Welfare Assistance Fund", desc: "One-off payments for families who are struggling financially, paid in vouchers for utilities, household items, or food. Applications can be made every three months.", audiences: ["Refugees", "Asylum seekers"], locations: ["County-wide"], types: ["General wellbeing", "Information & resources"], providers: ["Council"], contact: { web: "https://www.hertfordshire.gov.uk/about-the-council/news/cost-of-living/hertfordshire-welfare-assistance.aspx" } },
-  { name: "DENS Foodbank (Dacorum)", desc: "Dacorum-based foodbank providing food parcels to support refugees. Vouchers are available on request. Note: does not generally support asylum seekers.", audiences: ["Refugees"], locations: ["Dacorum"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { email: "admin@dacorumfoodbank.org.uk", web: "https://www.dacorumfoodbank.org.uk" } },
-  { name: "Dacorum Community Trust", desc: "Local charity providing furniture and other household support to vulnerable households in Dacorum including refugees and asylum seekers. Self-referral is possible.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["Refugee support", "General wellbeing"], providers: ["NGO"], contact: { web: "https://www.dctrust.org.uk/" } },
-  { name: "Dacorum Borough Council — Humanitarian Team", desc: "Coordinates Dacorum Borough Council's local response to refugees and asylum seekers, including housing clinics to support refugees into private rented accommodation and homelessness prevention for priority need individuals.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["Refugee support", "General wellbeing"], providers: ["Council"], contact: { email: "Humanitarian.response.mailbox@dacorum.gov.uk" } },
-  { name: "I Am Cherished", desc: "Dacorum-based domestic violence charity providing casework support to refugee and asylum-seeking women, and running a weekly Thursday morning friendship session.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["General wellbeing", "Family support"], providers: ["NGO"], contact: { email: "enquiries@iamcherished.co.uk", web: "https://www.iamcherished.co.uk" } },
-  { name: "Services for Young People (Dacorum)", desc: "Youth support service based at XC Centre, Jarman Park, for young people aged 11–17 in Dacorum, including local projects and educational opportunities for young refugees and asylum seekers.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["Activities", "Family support"], providers: ["Other"], contact: { web: "https://www.servicesforyoungpeople.org/support-for-young-people/youth-projects-in-your-area/dacorum-projects/" } },
-  { name: "West Herts College", desc: "Further education college offering ESOL classes for adults aged 19+ and vocational courses for young people aged 16–19, at campuses in Hemel Hempstead and Watford. Travel support may be available.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum", "Watford"], types: ["Activities", "Information & resources"], providers: ["Other"], contact: { web: "https://www.westherts.ac.uk/" } },
-  { name: "Alternatives Baby Charity", desc: "Dacorum charity providing free baby baskets from 32 weeks of pregnancy for vulnerable families including refugees and asylum seekers.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["Refugee support", "Family support"], providers: ["NGO"], contact: { email: "info@alternativeswatford.co.uk", web: "https://alternativeswatford.co.uk/" } },
-  { name: "Alexandra Road Congregational Church", desc: "Hemel Hempstead church hosting a weekly Friday drop-in for refugees and asylum seekers in Dacorum, providing a welcoming community space and practical support.", audiences: ["Refugees", "Asylum seekers"], locations: ["Dacorum"], types: ["General wellbeing", "Activities"], providers: ["Other"], contact: { email: "rwnarcc@outlook.com", web: "https://www.arcchemel.org.uk/" } }
-];
-
-const allAuds  = [...new Set(orgs.flatMap(o => o.audiences))].sort();
-const allLocs  = [...new Set(orgs.flatMap(o => o.locations))].sort();
-const allTypes = [...new Set(orgs.flatMap(o => o.types))].sort();
-const allProvs = [...new Set(orgs.flatMap(o => o.providers))].sort();
-
+const URL_KEY = "herts_apps_script_url";
+let SCRIPT_URL = localStorage.getItem(URL_KEY) || "";
 let activeAuds = new Set(), activeLocs = new Set(), activeTypes = new Set(), activeProvs = new Set();
 let query = "";
+let currentOrgs = [];
+
+function showSetup() {
+  document.getElementById("setupBox").style.display = "block";
+  document.getElementById("refreshRow").style.display = "none";
+  document.getElementById("search").style.display = "none";
+  document.getElementById("filterSection").style.display = "none";
+  document.getElementById("legend").style.display = "none";
+  document.getElementById("cards").innerHTML = "";
+  document.getElementById("count").textContent = "";
+}
+
+function hideSetup() {
+  document.getElementById("setupBox").style.display = "none";
+  document.getElementById("refreshRow").style.display = "flex";
+  document.getElementById("search").style.display = "";
+  document.getElementById("filterSection").style.display = "";
+  document.getElementById("legend").style.display = "flex";
+}
+
+document.getElementById("saveSheetId").addEventListener("click", () => {
+  const val = document.getElementById("sheetIdInput").value.trim();
+  if (!val) { alert("Please paste your Apps Script Web App URL first."); return; }
+  SCRIPT_URL = val;
+  localStorage.setItem(URL_KEY, SCRIPT_URL);
+  loadFromScript();
+});
+
+document.getElementById("refreshBtn").addEventListener("click", loadFromScript);
+document.getElementById("changeSheetBtn").addEventListener("click", () => {
+  localStorage.removeItem(URL_KEY);
+  SCRIPT_URL = "";
+  document.getElementById("sheetIdInput").value = "";
+  showSetup();
+});
+
+function loadFromScript() {
+  if (!SCRIPT_URL) { showSetup(); return; }
+  hideSetup();
+  document.getElementById("cards").innerHTML = '<div class="status-box"><div class="spinner"></div><br>Loading organisations...</div>';
+  document.getElementById("count").textContent = "";
+
+  fetch(SCRIPT_URL)
+    .then(r => {
+      if (!r.ok) throw new Error("HTTP_" + r.status);
+      return r.json();
+    })
+    .then(orgs => {
+      if (!Array.isArray(orgs) || !orgs.length) throw new Error("EMPTY");
+      buildDirectory(orgs);
+    })
+    .catch(err => {
+      console.error("Load error:", err);
+      let msg, tip;
+      if (err.message === "EMPTY") {
+        msg = "No organisations returned.";
+        tip = "Check your sheet has data starting from row 3 (row 1 = instructions, row 2 = headers).";
+      } else {
+        msg = "Could not load data from the script.";
+        tip = "Double check you pasted the full Web App URL (it ends in <code>/exec</code>), and that the deployment access is set to <strong>Anyone</strong>.";
+      }
+      document.getElementById("cards").innerHTML =
+        '<div class="status-box error">⚠ <strong>' + msg + '</strong><br><br>' + tip + '<br><br>' +
+        '<button onclick="document.getElementById(\'changeSheetBtn\').click()" style="padding:6px 14px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:13px;background:#fff;">Re-enter URL</button> ' +
+        '<button onclick="loadFromScript()" style="padding:6px 14px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:13px;background:#fff;">Try again</button>' +
+        '</div>';
+      document.getElementById("count").textContent = "";
+    });
+}
+
+function buildDirectory(orgs) {
+  currentOrgs = orgs;
+  activeAuds = new Set(); activeLocs = new Set(); activeTypes = new Set(); activeProvs = new Set();
+  query = "";
+  document.getElementById("search").value = "";
+  ["aud-filters","loc-filters","type-filters","prov-filters"].forEach(id => document.getElementById(id).innerHTML = "");
+
+  const allAuds  = [...new Set(orgs.flatMap(o => o.audiences))].sort();
+  const allLocs  = [...new Set(orgs.flatMap(o => o.locations))].sort();
+  const allTypes = [...new Set(orgs.flatMap(o => o.types))].sort();
+  const allProvs = [...new Set(orgs.flatMap(o => o.providers))].sort();
+
+  makePills("aud-filters",  allAuds,  activeAuds,  item => item === "Refugees" ? "aud-ref" : "aud-asy");
+  makePills("loc-filters",  allLocs,  activeLocs,  () => "loc");
+  makePills("type-filters", allTypes, activeTypes, () => "type");
+  makePills("prov-filters", allProvs, activeProvs, () => "prov");
+  render();
+}
 
 function makePills(containerId, items, activeSet, clsFn) {
   const el = document.getElementById(containerId);
   items.forEach(item => {
-    const cls = typeof clsFn === "function" ? clsFn(item) : clsFn;
+    const cls = clsFn(item);
     const btn = document.createElement("button");
     btn.className = "pill " + cls;
     btn.textContent = item;
@@ -131,15 +216,10 @@ function makePills(containerId, items, activeSet, clsFn) {
   });
 }
 
-makePills("aud-filters",  allAuds,  activeAuds,  item => item === "Refugees" ? "aud-ref" : "aud-asy");
-makePills("loc-filters",  allLocs,  activeLocs,  () => "loc");
-makePills("type-filters", allTypes, activeTypes, () => "type");
-makePills("prov-filters", allProvs, activeProvs, () => "prov");
-
 document.getElementById("search").addEventListener("input", e => { query = e.target.value.toLowerCase(); render(); });
 
 function render() {
-  const filtered = orgs.filter(o => {
+  const filtered = currentOrgs.filter(o => {
     if (activeAuds.size  && !o.audiences.some(a => activeAuds.has(a)))  return false;
     if (activeLocs.size  && !o.locations.some(l => activeLocs.has(l)))  return false;
     if (activeTypes.size && !o.types.some(t => activeTypes.has(t)))     return false;
@@ -181,7 +261,8 @@ function render() {
   });
 }
 
-render();
+if (SCRIPT_URL) { document.getElementById("sheetIdInput").value = SCRIPT_URL; loadFromScript(); }
+else { showSetup(); }
 </script>
 </body>
 </html>
